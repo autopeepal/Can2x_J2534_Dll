@@ -1,0 +1,414 @@
+
+J2534_ERROR PassThruIoctl(unsigned long ChannelID, unsigned long IoctlID, void *pInput, void *pOutput);
+This function will have following things
+--------------------------------------------------------------------------
+	GET_CONFIG = 0x01,: We will use this IoctlID id to get the Iput command value or status
+	SET_CONFIG = 0x02, : we will use this IoctlID id to set the configuration for communication on physical channel
+	Autopeepal dongle will Support the follwing INput/output pararmeters for its CAN and ISo 
+				DATA_RATE = 0x01,		// all protocols  ------------------ 5 - 500000		----------------------- Baud Rate of communication
+ 				P1_MIN= 0x06,			// ISO9141 specific --- 0x00 to 0xFFFF --- minimum ECU inter-byte time (in milliseconds) for responses. Default is 0 ms
+				P1_MAX= 0x07,			//ISO9141 specific ---- 0x00 to 0xFFFF --- maximum ECU inter-byte time (in milliseconds) for responses. Default is 20 ms
+				P2_MIN= 0x08,			//ISO9141 specific ---- 0x00 to 0xFFFF --- minimum ECU response time (in milliseconds) to a tester request or between ECU responses. Default 25 ms
+				P2_MAX= 0x09,			//ISO9141 specific ---- 0x00 to 0xFFFF --- maximum ECU response time (in milliseconds) to a tester request or between ECU responses. max is 50 ms
+				P3_MIN= 0x0a,			//ISO9141 specific -----0x00 to 0xFFFF --- minimum ECU response time (in milliseconds) between end of ECU response and next tester request. Default 55 ms
+				P3_MAX= 0x0b,			//ISO9141 specific ----- 0x00 to 0xFFFF -- maximum ECU response time (in milliseconds) between end of ECU response and next tester request. Default 5000 ms
+				P4_MIN= 0x0c,			//ISO9141 specific ----- 0x00 to 0xFFFF -- minimum tester inter-byte time (in milliseconds) for a request. default is 5 ms
+				P4_MAX= 0x0d,			//ISO9141 specific ----- 0x00 to 0xFFFF -- maximum tester inter-byte time (in milliseconds) for a request. default is 20 ms
+				W1= 0x0e,			//ISO9141 specific --------- 0x00 to 0xFFFF -- maximum time(in milliseconds) from the address byte end to synchronization pattern start. Default value is 300 milliseconds.
+				W2= 0x0f,			//ISO9141 specific --------- 0x00 to 0xFFFF -- maximum time(in milliseconds) from the synchronization byte end to key byte 1 start. Default value is 20 milliseconds.
+				W3= 0x10,			//ISO9141 specific --------- 0x00 to 0xFFFF -- maximum time(in milliseconds) between key byte 1 and key byte 2. Default value is 20 milliseconds.
+				W4= 0x11,			//ISO9141 specific --------- 0x00 to 0xFFFF -- maximum time(in milliseconds) between key byte 2 and its inversion from the tester. Default value is 50 milliseconds.
+				W5= 0x12,			//ISO9141 specific --------- 0x00 to 0xFFFF -- minimum time(in milliseconds) before the tester begins retransmission of the address byte. Default value is 300 milliseconds.
+				TIDLE= 0x13,		//ISO9141 specific --------- 0x00 to 0xFFFF -- bus idle time required before starting a fast initialization sequence. Default value is W5 value
+				TINL= 0x14,			//ISO9141 specific --------- 0x00 to 0xFFFF -- the duration(in milliseconds) of the fast initialization low pulse. Default value is 25 milliseconds
+				TWUP= 0x15,			//ISO9141 specific --------- 0x00 to 0xFFFF -- the duration(in milliseconds) of the fast initialization wake-up pulse. Default value is 50 milliseconds.
+				PARITY= 0x16,		//ISO9141 specific --------- 0 - no parity, 1 - odd, 2 - even ------ parity type for detecting bit errors. Default value is 0(NO_PARITY).
+				BIT_SAMPLE_POINT = 0x17,// CAN Specific -------- 0 - 100---------- CAN specific, the desired bit sample point as a percentage of bit time. Default is 80%
+				SYNCH_JUMP_WIDTH = 0x18, // CAN specific ------- 0 - 100 --------- the desired synchronization jump width as a percentage of the bit time. Default is 15 %
+				ISO15765_BS = 0x1e, // ISO15765 specific ------- 0x1e to 0xff ---- the block size for segmented transfers. The scan tool may override this value to match the capabilities reported by the ECUs. Default value is 0.
+				ISO15765_STMIN = 0x1f, // ISO15765 specific ---- 0x00 to 0xff ---- the separation time for segmented transfers. The scan tool may override this value to match the capabilities reported by the ECUs. Default value is 0.
+=====
+1. Data Rate: 
+For all protocol this is the command paramtere that we have to set.
+To set CAN and ISO15765 Datarate command:
+to set the data rate for CAN and ISO15765 command we have to know the 4 pararmeters i.e. Protocol ID, ID type, Addressing type and data rate.
+Base on these 4 parameter we can set the procol to the dongle. To configurre the dongle protocol we are not sending the all prareter evertime. 
+depend on the pareter values we send single protocol id to the dongle. we send following command to the dongle
+20 02 CN 02 PI CC CC
+CN: Channel byte
+02: every second byte for the command bytestream reperesent the type of command. 02 is stand for the Protocol setting type.
+PI: we us this as protocol id. 
+Once dongle received the dongle protocol configuration command we will reveved positive or negative response. 
+base on that we have to store the error in the j2534. Create new negavtive responses as dongle negative response in the error list.
+Positive repspone with CRC: 20 01 00 00 E1 F0.
+Negative respone command not supported: 20 02 00 01 10 3C 0F
+Negative respone Invalid foramat or msg len: 20 02 00 01 13 0C 6C
+Negative respone CRC failer: 20 02 00 01 15 6C AA
+Negative respone Security access denied: 20 02 00 01 33 28 0E
+Negative respone Invalid seucity key: 20 02 00 01 35 48 C8
+
+Follwoing are the condition for each parameter to choose the Protocol ID:
+ProtocolID: ISO15765, IDtype: 11bit, Adddressing type: Standard, Datarate: 250000 : PI :00
+ProtocolID: ISO15765, IDtype: 29bit, Adddressing type: Standard, Datarate: 250000 : PI :01
+ProtocolID: ISO15765, IDtype: 11bit, Adddressing type: Standard, Datarate: 500000 : PI :02
+ProtocolID: ISO15765, IDtype: 29bit, Adddressing type: Standard, Datarate: 500000 : PI :03
+ProtocolID: ISO15765, IDtype: 11bit, Adddressing type: Standard, Datarate: 1000000 : PI :04
+ProtocolID: ISO15765, IDtype: 29bit, Adddressing type: Standard, Datarate: 1000000 : PI :05
+ProtocolID: CAN, IDtype: 11bit, Adddressing type: Standard, Datarate: 250000 : PI :06
+ProtocolID: CAN, IDtype: 29bit, Adddressing type: Standard, Datarate: 250000 : PI :07 
+ProtocolID: CAN, IDtype: 11bit, Adddressing type: Standard, Datarate: 500000 : PI:08
+ProtocolID: CAN, IDtype: 29bit, Adddressing type: Standard, Datarate: 500000 : PI:09
+ProtocolID: CAN, IDtype: 11bit, Adddressing type: Standard, Datarate: 1000000 : PI:0a
+ProtocolID: CAN, IDtype: 29bit, Adddressing type: Standard, Datarate: 1000000 : PI:0b
+
+as we know that first command is going to call passthru connect then only PassThruIoctl will call.
+for iso15765 and CAN protocol we can set but for ISO9141 and ISO14230 autopeepla need to change its api
+so will update u on that.
+=====
+2.LOOPBACK = 0x03,		// all protocols ------------------- 0 - off, 1 - on----------------------- Tx message echo
+ From dongle side this implementation is not there we have thandle this in DLl it self.
+ when its value is On then we have to send passthwritemsg function passthrumsg to the rxmsg buffer.
+==========================================
+Please hold below commands as in dongle needs to set those. will get back this in monday
+P1_MIN= 0x06,			// ISO9141 specific --- 0x00 to 0xFFFF --- minimum ECU inter-byte time (in milliseconds) for responses. Default is 0 ms
+P1_MAX= 0x07,			//ISO9141 specific ---- 0x00 to 0xFFFF --- maximum ECU inter-byte time (in milliseconds) for responses. Default is 20 ms
+P2_MIN= 0x08,			//ISO9141 specific ---- 0x00 to 0xFFFF --- minimum ECU response time (in milliseconds) to a tester request or between ECU responses. Default 25 ms
+P2_MAX= 0x09,			//ISO9141 specific ---- 0x00 to 0xFFFF --- maximum ECU response time (in milliseconds) to a tester request or between ECU responses. max is 50 ms
+P3_MIN= 0x0a,			//ISO9141 specific -----0x00 to 0xFFFF --- minimum ECU response time (in milliseconds) between end of ECU response and next tester request. Default 55 ms
+P3_MAX= 0x0b,			//ISO9141 specific ----- 0x00 to 0xFFFF -- maximum ECU response time (in milliseconds) between end of ECU response and next tester request. Default 5000 ms
+P4_MIN= 0x0c,			//ISO9141 specific ----- 0x00 to 0xFFFF -- minimum tester inter-byte time (in milliseconds) for a request. default is 5 ms
+P4_MAX= 0x0d,			//ISO9141 specific ----- 0x00 to 0xFFFF -- maximum tester inter-byte time (in milliseconds) for a request. default is 20 ms
+W1= 0x0e,			//ISO9141 specific --------- 0x00 to 0xFFFF -- maximum time(in milliseconds) from the address byte end to synchronization pattern start. Default value is 300 milliseconds.
+W2= 0x0f,			//ISO9141 specific --------- 0x00 to 0xFFFF -- maximum time(in milliseconds) from the synchronization byte end to key byte 1 start. Default value is 20 milliseconds.
+W3= 0x10,			//ISO9141 specific --------- 0x00 to 0xFFFF -- maximum time(in milliseconds) between key byte 1 and key byte 2. Default value is 20 milliseconds.
+W4= 0x11,			//ISO9141 specific --------- 0x00 to 0xFFFF -- maximum time(in milliseconds) between key byte 2 and its inversion from the tester. Default value is 50 milliseconds.
+W5= 0x12,			//ISO9141 specific --------- 0x00 to 0xFFFF -- minimum time(in milliseconds) before the tester begins retransmission of the address byte. Default value is 300 milliseconds.
+TIDLE= 0x13,		//ISO9141 specific --------- 0x00 to 0xFFFF -- bus idle time required before starting a fast initialization sequence. Default value is W5 value
+TINL= 0x14,			//ISO9141 specific --------- 0x00 to 0xFFFF -- the duration(in milliseconds) of the fast initialization low pulse. Default value is 25 milliseconds
+TWUP= 0x15,			//ISO9141 specific --------- 0x00 to 0xFFFF -- the duration(in milliseconds) of the fast initialization wake-up pulse. Default value is 50 milliseconds.
+PARITY= 0x16,		//ISO9141 specific --------- 0 - no parity, 1 - odd, 2 - even ------ parity type for detecting bit errors. Default value is 0(NO_PARITY).
+BIT_SAMPLE_POINT = 0x17,// CAN Specific -------- 0 - 100---------- CAN specific, the desired bit sample point as a percentage of bit time. Default is 80%
+SYNCH_JUMP_WIDTH = 0x18, // CAN specific ------- 0 - 100 --------- the desired synchronization jump width as a percentage of the bit time. Default is 15 %
+=======================
+ISO15765_BS = 0x1e, // ISO15765 specific ------- 0x1e to 0xff ---- the block size for segmented transfers. The scan tool may override this value to match the capabilities reported by the ECUs. Default value is 0.
+We can  set this using follwoing command
+what ever value we are getting here we will have to keep it in the 
+Command number to set the bloack size                 = 0x08, after this one byte is block size
+after this we will get the positvie or negative response as mention above.
+20 02 00 08 BS CC CC
+Positive respone -> 20 01 00 00 E1 F0
+negative reposne as mentioned aboves
+
+Command number to get the block size from the dongle  = 0x09, after this on byte is block size
+we will get direct block size in the msg or we wil get the negative response as mention above.
+20 01 00 09 CC CC
+Positive respone -> 20 01 00 BS CC CC
+negative reposne as mentioned aboves
+
+====
+ISO15765_STMIN = 0x1f, // ISO15765 specific ---- 0x00 to 0xff ---- the separation time for segmented transfers. The scan tool may override this value to match the capabilities reported by the ECUs. Default value is 0.
+
+SETTING_TYPE_SET_CONSECUTIVE_TIME  0x0C
+SETTING_TYPE_GET_CONSECUTIVE_TIME  0x0D
+
+the working and command formation is same like above.
+To set the ST
+20 02 00 0C ST CC CC
+Positive respone -> 20 01 00 00 E1 F0
+negative reposne as mentioned aboves
+
+To get the ST
+20 01 00 0D CC CC
+Positive respone -> 20 01 00 ST CC CC
+negative reposne as mentioned aboves
+-----------------------------------------------------------------------------------------------------------------------
+* READ_VBATT = 0x03, : this IoctlID id will use to get the battery voltage from the device
+we will use following command to read the voltage from the device
+SETTING_TYPE_GET_VOLTAGE    0x25 //NI
+20 01 00 25 95 37
+in the respone from the dongle we will get 2 byte of milivolt value value which we have to send to the device.
+20 02 00 MV MV CC CC
+MV: milivolt response like e.g. data is 04 57 then actual reading is 1111mv 
+----------------------------------------------------------------------------------------------------
+* READ_PROG_VOLTAGE = 0x04, 
+we have to read the set programming voltage from the variable of PassThruSetProgrammingVoltage
+and provide it in the parameter.
+dll needs to store the voltage value applied in the PassThruSetProgrammingVoltage in variable.
+and give the same value in response for this parameter.
+--------------------------------------------------------------------------------------------------
+* FIVE_BAUD_INIT = 0x05,
+* FAST_INIT = 0x06,
+our current dongle api may not support need to update the api and will explain u later
+-------------------------------------------------------------------------------------------------	
+* CLEAR_TX_BUFFER = 0x07,
+Clearing Transmission msg queue
+-----------------------------------------------------------------------------------------------	
+* CLEAR_RX_BUFFER = 0x08,
+Clearing receive msg queue
+clear the rx msg in dll it self as we are going to run receive msges task always which will send the data the receive
+msg buffe. using this method we can clear that buffer.
+----------------------------------------------------------------------------------------------	
+* CLEAR_PERIODIC_MSGS = 0x09,
+clearring periodic msgs
+we have clear msg in the dll itself as queue is going to handle by the dll.
+------------------------------------------------------------------------------------------	
+* CLEAR_MSG_FILTERS = 0x0a,
+cleareing msg filters by sending 
+Follwoing commmand to the dongle
+
+
+
+------------------------------------------------------------------------------------
+
+	CLEAR_FUNCT_MSG_LOOKUP_TABLE = 0x0b,: Not supported
+	ADD_TO_FUNCT_MSG_LOOKUP_TABLE = 0x0c, Not supported
+	DELETE_FROM_FUNCT_MSG_LOOUP_TABLE = 0x0d, Not supported
+-----------------------------------------------------------------------------------
+
+
+
+
++===================================================================================
+J2534_ERROR PassThruWriteMsgs(unsigned long ChannelID, PASSTHRU_MSG *pMsg, unsigned long *pNumMsgs, unsigned long Timeout);
+===================================================================================
+
+Follwing are the paramteres used for above function
+
+typedef struct {
+unsigned long ProtocolID; /* vehicle network protocol */
+unsigned long RxStatus; /* receive message status */
+unsigned long TxFlags; /* transmit message flags */
+unsigned long Timestamp; /* receive message timestamp(in microseconds) */
+unsigned long DataSize; /* byte size of message payload in the Data array */
+unsigned long ExtraDataIndex; /* start of extra data(i.e. CRC, checksum, etc) in Data array */
+unsigned char Data[4128]; /* message payload or data */
+} PASSTHRU_MSG;
+
+Rxstatus: it will use for Rx msges
+
+
+TX flags
+BLOCKING:
+depend on this falg we have to deside to wait to transmit new msg.
+to send the data to the vehicle network via our dongle we have to use follwoing formation
+4L LL CN PY PY PY PY CC CC
+4 is as initiator which define to know the paylaod is going to send over the vehicle network
+LLL is the length of the payload. max leng is fff
+CN is basically channel number depend on the protocol id we use to se the physical channel number
+CAN : CN = 00
+ISO15765 : CN = 00
+CAN_1 : CN = 01
+ISO15765_1 : CN = 01
+ISO9141 : CN = 02
+ISO14230 : CN = 02
+ISO9141_1 : CN = 03
+ISO14230_1 : CN = 03
+
+once we send this command to the dongle dongle will reply the positive reposne as
+20 01 00 00 e1 f0.
+
+this will indicates the payload went to the vehicle network.
+once we get this reponse we have to send one passthru msg to the passthru msg buffer or queue with its tx can id
+which we get in the data array of passthru msg. and also need to make the TX_MSG_TYPE rx buffer as set.
+when user read the rx msg buffer or queue then he will get this passthu msg which will indicate the transmission 
+confirmation.
+
+base in the blocking sate we may have to read the passthru msg buffer and depend on that we may have to send this
+to tx queue, wait or send error if not recevie the confirmation
+
+
+J2534_TxFlag_FLAG_CAN_29BIT_ID_BIT 
+This flag will say the can id type
+this flag just to assgin not to send any command to dongle 
+
+J2534_TxFlag_ISO15765_ADDR_TYPE_BIT
+This will indiacate the addressing type : as our dongle is alwyas support  Standard addressing type
+this flag is also assigning not to sending the command to dongle
+
+ISO15765_FRAME_PAD
+based on this falg we have enable the padding or disable its
+following is the command to enable the padding with pad byte 00
+20 02 00 12 00 78 1E
+12 is the command number and 00 is padbyte
+to disable the padding we will send following command
+20 01 00 13 CC CC
+CC is crc 
+12 is command number
+
+we will check every msg padding flag is it is the same of previos then we no need to send same command again
+like if sending 3 msg and all 3 msges will have this padding enable then we will send enable for first msg for other 2 no need to send
+command to the dongle.
+if th 4th msg is having disable padding then we have to send disable command to the dongle.
+
+ProtocolID:
+from this we will get the channel number on which we have to send payload. 
+CAN : CN = 00
+ISO15765 : CN = 00
+CAN_1 : CN = 01
+ISO15765_1 : CN = 01
+ISO9141 : CN = 02
+ISO14230 : CN = 02
+ISO9141_1 : CN = 03
+ISO14230_1 : CN = 03
+
+
+unsigned long Timestamp; /* receive message timestamp(in microseconds) */
+dll will handle this for rx msge queue
+
+unsigned long DataSize; /* byte size of message payload in the Data array */
+payload size of the data array it will use to define the payload size for data command which we send to dongle.
+
+unsigned long ExtraDataIndex; /* start of extra data(i.e. CRC, checksum, etc) in Data array */
+For our dongle we are not using this varibale 
+
+unsigned char Data[4128]; /* message payload or data */
+As we using Standard addressing. we will get first four bytes are can id. if the can address is 11 bit then we will two bytes to set the tx id, 
+and if the id is 29 bit the we will use 4 byte to set the tx id. e.g. 
+data example DATA[10]={0x00,0x00,0x07,0xE0,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88}
+				DATA[10]={0x18,0xDA,0x00,0xF1,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88}
+
+
+follwing are the example 
+20 03 00 04 07 e0 74 e5	//Set Tx Id commands: 7e0
+20 05 00 04 18 DA 00 F1 5b 05	//Set tX id:  18DA00F1
+
+
+Note: if the tx id of new msg and old msg is same then no  need to send the txid command to dongle.
+
+After the Can data of 4 byte rest data is actual payload which we have to send to the vehicle network.
+then sending command will for protocol id: CAN and ISO15765
+40 08 00 11 22 33 44 55 66 77 88 CC CC 
+then sending command will for protocol id: CAN_1 and ISO15765_1
+40 08 01 11 22 33 44 55 66 77 88 CC CC
+
+========================================================================
+J2534_ERROR PassThruReadMsgs(unsigned long ChannelID, PASSTHRU_MSG *pMsg, unsigned long *pNumMsgs, unsigned long Timeout);
+
+=======================================================================
+typedef struct {
+unsigned long ProtocolID; /* vehicle network protocol */
+unsigned long RxStatus; /* receive message status */
+unsigned long TxFlags; /* transmit message flags */
+unsigned long Timestamp; /* receive message timestamp(in microseconds) */
+unsigned long DataSize; /* byte size of message payload in the Data array */
+unsigned long ExtraDataIndex; /* start of extra data(i.e. CRC, checksum, etc) in Data array */
+unsigned char Data[4128]; /* message payload or data */
+} PASSTHRU_MSG;
+
+Timestamp: 
+Dll needs to handle this varibale depend on the time stamp dll have to put this into the passthru msg 
+
+DataSize
+it will include the total datasize with the can id also
+
+DaTa:
+We have create one receive task which contiinue monitor the received data from the dongle.
+the data start with 4 only will consider as passthru msg. others will be responses for the requested commands. 
+depend on the vehicel network filer dongle will send the data to the application. it might be possiblility without request from dongle to vehicle network,
+dongle will send data to the dll. we have create one passthru msg queue where we can store all the passthru msges. and user will request the PassThruReadMsgs  
+we have break data as below
+40 08 01 00 00 07 E0 11 22 33 44 55 66 77 88 CC CC
+
+There is small change in the tx and receive data bytestream,
+we will get the rxid with data from the dongle
+the payload and id we have to put same togheter in the DATA array of the passthru msg e.g. DATA[10]={0x00,0x00,0x07,0xE0,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88}
+
+we have set the rx msg buffer
+we have to set the protocol id from the previous store varibable
+we have to create on structure where we can assgin these required varibale and use whenever required.
+
+
+Rx status flags:
+CAN_29BIT_ID ………….. 8 ……... CAN ID Type 0 = 11-bit
+Depend on strore varibale value we will set the flag
+
+ISO15765_FIRST_FRAME 1 ……… ISO15765-2 only 0 = No First Frame indication
+if the payload length of the receive bytestream is more than 7 then we have to sennd one blank passthru msg to the queue and then actual data passthru msg.
+this will ask to send two msg the passtrhu msg recevive queue.
+this will indiacate the payload lengh is more than 7 in passthru recieve msg and second msg will give us actual data.
+when ever usr got this flag enable in the passthru reaad msg queu then it will call to read one more msg from passthru read msg queue.
+
+TX_MSG_TYPE …………. 0 ……… Receive Indication / 0 = Rx Frame indication
+
+this already explain in the blocking of tx flag
+
+
+===========================================================================================
+J2534_ERROR PassThruStartMsgFilter(unsigned long ChannelID, unsigned long FilterType, PASSTHRU_MSG *pMaskMsg, 
+												PASSTHRU_MSG *pPatternMsg, PASSTHRU_MSG *pFlowControlMsg, unsigned long *pMsgID);
+
+========================================================================================
+There are three types of filters
+
+long PassThruStartMsgFilter(
+unsigned long ChannelID,
+unsigned long FilterType,
+PASSTHRU_MSG *pMaskMsg,
+PASSTHRU_MSG *pPatternMsg,
+PASSTHRU_MSG *pFlowControlMsg,
+unsigned long *pMsgID
+);
+
+pass filter:
+block filert:
+flow control filter;
+
+we will use following command to send the filter commanad to the dongle.
+20 08 CN MS MS MS MS Ci Ci CI Ci CC CC
+Cn: Command number
+Ms: Mask id
+Ci: CAn id
+
+As we have seen the declaratio of pmaskmsg, pPatternMsg we will asssign the pmaskmsg to masid and pPatternMsg to can id to initiate the filter
+depend on the msk we can define the pass filter or block filetr.
+by putting same pmaskmsg and pPatternMsg we can enable the passfilter.
+
+and by doing some operation of the mskmsg we also can assign the block filter.
+
+we will use same command to set the flow control filter as all mask will be FF and we will put the can id data in to the can ID.
+
+for every command dongle will send positive response as it is configuariton part else its standrad negative responsees
+
+==================================================================================
+J2534_ERROR PassThruStopMsgFilter(unsigned long ChannelID, unsigned long MsgID);
+==================================================================================
+clear all filter stored from start fileter
+
+=====================================================================================================
+J2534_ERROR PassThruStartPeriodicMsg(unsigned long ChannelID, PASSTHRU_MSG *pMsg, unsigned long *pMsgID, unsigned long TimeInterval);
+========================================================================================================
+
+this method is used to send the data on vehicle network with ask TimeInterval. other things are the same like passthwritemsg method.
+
+==============================
+J2534_ERROR PassThruStopPeriodicMsg(unsigned long ChannelID, unsigned long MsgID);
+=============================
+Stop the periodic msges with id
+
+===============================================
+J2534_ERROR PassThruSetProgrammingVoltage(unsigned long PinNumber, unsigned long Voltage);
+=============================================
+Read set the volatge and assgin the voltage value to the varible as well which we will retrun in the ioctl 
+
+#define SETTING_TYPE_SET_Voltage    0x26 //NI
+
+we cab set the the voltage by using above command number
+we will get two byte of voltage value in mv and sent it to dongle
+20 03 00 26 VV VV CC CC
+Do not consider chnnel id
+VV is mv vale in hex
+
+==========================================
+J2534_ERROR PassThruReadVersion(char *pFirmwareVersion, char * pDllVersion, char *pApiVersion);
+==========================================
+
+This we return tye dll, fw, and apiversion
+
+
+
+
+
+
+
+
+
