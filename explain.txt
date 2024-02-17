@@ -1,3 +1,6 @@
+we have create dongle error new in the J2534 eror enum
+
+
 
 J2534_ERROR PassThruIoctl(unsigned long ChannelID, unsigned long IoctlID, void *pInput, void *pOutput);
 This function will have following things
@@ -397,6 +400,8 @@ we will get two byte of voltage value in mv and sent it to dongle
 20 03 00 26 VV VV CC CC
 Do not consider chnnel id
 VV is mv vale in hex
+
+we will positive or negative id
 
 ==========================================
 J2534_ERROR PassThruReadVersion(char *pFirmwareVersion, char * pDllVersion, char *pApiVersion);
