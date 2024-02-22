@@ -411,8 +411,47 @@ This we return tye dll, fw, and apiversion
 
 
 
+22.02.2024
 
 
+FoR get Commands from the device
+1. data rate
+We will get the Protocol Id from the dongle. we have to intepret data rate from the Porotocol ID
+We have to send following command to the dongle which will reply to us the protocol id
+dll to Dongle
+20 02 CN 03 CC CC 
+From Dongle to Dll
+20 01 CN PI CC CC
+PI = 00: 250000
+PI = 01: 250000
+PI = 02: 500000
+PI = 03: 500000
+PI = 04: 1000000
+PI = 05: 1000000
+PI = 06: 250000
+PI = 07: 250000
+PI = 08: 500000
+PI = 09: 500000
+PI = 0a: 1000000
+PI = 0b: 1000000
+
+
+2. ISO15765_BS
+Dll to Dongle
+20 01 CN 09 CC CC
+Dongle to Dll
+20 01 CN BS CC CC
+BS is the block size
+
+3. ISO15765_STMIN
+Dll to dongle
+20 01 CN 0D CC CC
+Dongle to Dll
+20 01 CN ST CC CC
+
+St is the Stmin time
+
+for other command skip for now
 
 
 
